@@ -1,0 +1,41 @@
+name: CD
+
+# (g) Runs only after CI has finished successfully on main
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  IMAGE_NAME: weather-ml-app
+
+jobs:
+  deploy:
+    # Only deploy passed builds
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    # Self-hosted runner installed on the Production Server
+    runs-on: self-hosted
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Read image version
+        run: echo "VERSION=$(cat VERSION)" >> "$GITHUB_ENV"
+
+      - name: Apply Kubernetes manifests
+        run: |
+          sed "s|IMAGE_PLACEHOLDER|${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.VERSION }}|" k8s/deployment.yaml | kubectl apply -f -
+          kubectl apply -f k8s/service.yaml
+
+      # Rolling update: pods are replaced one at a time so the app stays up
+      - name: Wait for rollout to finish
+        run: kubectl rollout status deployment/weather-ml-app --timeout=180s
+
+      - name: Show deployed state
+        run: |
+          kubectl get pods -o wide
+          kubectl get svc weather-ml-app
