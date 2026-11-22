@@ -1,5 +1,5 @@
 ---
-- name: A playbook to install Docker on a VM
+- name: A playbook to install Docker and kubectl on a VM
   hosts: localhost
   connection: local
   remote_user: ubuntu
@@ -73,3 +73,15 @@
         name: "{{ app_user }}"
         groups: docker
         append: yes
+
+    - name: 11. Find the latest stable kubectl version
+      uri:
+        url: https://dl.k8s.io/release/stable.txt
+        return_content: yes
+      register: kubectl_version
+
+    - name: 12. Install kubectl
+      get_url:
+        url: "https://dl.k8s.io/release/{{ kubectl_version.content | trim }}/bin/linux/amd64/kubectl"
+        dest: /usr/local/bin/kubectl
+        mode: "0755"
