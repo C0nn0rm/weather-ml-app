@@ -1,5 +1,5 @@
 ---
-- name: A playbook to install Docker and kubectl on a VM
+- name: A playbook to install Docker, kubectl and Minikube on a VM
   hosts: localhost
   connection: local
   remote_user: ubuntu
@@ -85,3 +85,21 @@
         url: "https://dl.k8s.io/release/{{ kubectl_version.content | trim }}/bin/linux/amd64/kubectl"
         dest: /usr/local/bin/kubectl
         mode: "0755"
+
+    - name: 13. Install Minikube
+      get_url:
+        url: https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+        dest: /usr/local/bin/minikube
+        mode: "0755"
+
+    - name: 14. Check if Minikube is already running
+      become: no
+      command: sg docker -c "minikube status"
+      register: minikube_status
+      changed_when: false
+      failed_when: false
+
+    - name: 15. Start Minikube
+      become: no
+      command: sg docker -c "minikube start --driver=docker --memory=2500mb"
+      when: minikube_status.rc != 0
