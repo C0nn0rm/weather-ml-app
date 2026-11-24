@@ -11,6 +11,7 @@
     app_name: weather-ml-app
     app_image: connormcpike/weather-ml-app:v1
     container_port: 5000
+    replicas: 3
     docker_fingerprint: 9DC858229FC7DD38854AE2D88D81803C0EBFCD88
 
   tasks:
@@ -166,19 +167,39 @@
       register: apply_result
       changed_when: "'configured' in apply_result.stdout or 'created' in apply_result.stdout"
 
-    - name: 19. Get the pods
+    - name: 19. Scale the Deployment so it can do rolling updates
+      become: no
+      command: kubectl scale deployment {{ app_name }} --replicas={{ replicas }}
+
+    - name: 20. Wait until all the pods are running
+      become: no
+      command: kubectl rollout status deployment/{{ app_name }} --timeout=180s
+      changed_when: false
+
+    - name: 21. Rolling update to a new image
+      become: no
+      command: kubectl set image deployment/{{ app_name }} {{ app_name }}={{ new_image }}
+      when: new_image is defined
+
+    - name: 22. Wait for the rolling update to finish
+      become: no
+      command: kubectl rollout status deployment/{{ app_name }} --timeout=180s
+      changed_when: false
+      when: new_image is defined
+
+    - name: 23. Get the pods
       become: no
       command: kubectl get pods -l app={{ app_name }} -o wide
       register: pods
       changed_when: false
 
-    - name: 20. Get the app's URL
+    - name: 24. Get the app's URL
       become: no
       command: sg docker -c "minikube service {{ app_name }}-service --url"
       register: app_url
       changed_when: false
 
-    - name: 21. Show the pods and URL
+    - name: 25. Show the pods and URL
       debug:
         msg:
           - "{{ pods.stdout_lines }}"
