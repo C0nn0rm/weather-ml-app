@@ -1,6 +1,6 @@
 import unittest
 from unittest.mock import patch
-from app import app, classify_weather, load_model
+from app import app, classify_weather, load_model, weather_classes
 import numpy as np
 
 class TestUnit(unittest.TestCase):
@@ -41,7 +41,7 @@ class TestUnit(unittest.TestCase):
 		test_input = np.array([279.626,998,99,1,314,0.3,0,0,88]).reshape(1,-1)
 		class_result, _ = classify_weather(test_input) 
 		# Ensure that 'rainy' class is returned
-		self.assertEqual(class_result, 'rainy')
+		self.assertEqual(class_result, weather_classes[6])
 		
 
 	def test_foggy_classification_output(self):
