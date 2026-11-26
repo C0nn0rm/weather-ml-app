@@ -15,7 +15,7 @@ jobs:
   deploy:
     # Only deploy passed builds
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
-    # Self-hosted runner installed on the Production Server
+    # Self-hosted runner installed on the Production Server (same user that runs minikube)
     runs-on: self-hosted
     steps:
       - name: Checkout code
@@ -26,16 +26,18 @@ jobs:
       - name: Read image version
         run: echo "VERSION=$(cat VERSION)" >> "$GITHUB_ENV"
 
-      - name: Apply Kubernetes manifests
+      # Rolling update: swap the image on the existing Deployment (created by the Ansible playbook).
+      # Kubernetes replaces the pods one at a time, so the app stays up.
+      - name: Roll out the new image
         run: |
-          sed "s|IMAGE_PLACEHOLDER|${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.VERSION }}|" k8s/deployment.yaml | kubectl apply -f -
-          kubectl apply -f k8s/service.yaml
+          kubectl set image deployment/weather-ml-app \
+            weather-ml-app=${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.VERSION }}
 
-      # Rolling update: pods are replaced one at a time so the app stays up
       - name: Wait for rollout to finish
         run: kubectl rollout status deployment/weather-ml-app --timeout=180s
 
       - name: Show deployed state
         run: |
-          kubectl get pods -o wide
-          kubectl get svc weather-ml-app
+          kubectl get pods -l app=weather-ml-app -o wide
+          kubectl get svc weather-ml-app-service
+          kubectl get deployment weather-ml-app -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}'
